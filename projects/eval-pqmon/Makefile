@@ -8,8 +8,8 @@ STACK_SIZE=0x20000
 
 ifeq ($(INTERFACE), usb)
 $(info Using USB as interface for IIO communication)
+CONFIG_USB_UART_MAXIM = y
 CFLAGS += -DPQM_CONN_USB
-CFLAGS += -DNO_OS_USB_UART
 endif
 
 ifeq ($(INTERFACE), serial)
@@ -19,8 +19,8 @@ endif
 
 ifeq ($(INTERFACE), ethernet)
 $(info Using ETHERNET as interface for IIO communication)
+CONFIG_USB_UART_MAXIM = y
 CFLAGS += -DPQM_CONN_USB
-CFLAGS += -DNO_OS_USB_UART
 CFLAGS += -DPQM_CONN_ETH
 CFLAGS += -DNO_OS_W5500_NETWORKING
 CFLAGS += -DCONFIG_NO_OS_IP=\"$(CONFIG_NO_OS_IP)\"
@@ -49,6 +49,7 @@ include ../../tools/scripts/generic_variables.mk
 
 CFLAGS_MFLOAT_TYPE=soft
 CFLAGS += -DIIO_IGNORE_BUFF_OVERRUN_ERR
+CFLAGS += -DCONFIG_USB_UART_MAXIM=\"$(CONFIG_USB_UART_MAXIM)\"
 
 include src.mk
 include ../../tools/scripts/generic.mk
