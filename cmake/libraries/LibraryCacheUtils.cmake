@@ -147,6 +147,14 @@ function(resolve_library_source LIB_NAME REQUESTED_VERSION SUBMODULE_PATH GIT_RE
     if(FETCH_TO_CACHE)
         message(STATUS "[${LIB_NAME}] → Fetching ${REQUESTED_VERSION} to cache: ${CACHED_LIB_DIR}")
 
+	# Make sure there is no corrupt cache checkout
+        string(TOLOWER "${LIB_NAME}" LIB_NAME_LOWER)
+        if(EXISTS "${CACHED_LIB_DIR}" AND NOT EXISTS "${CACHED_LIB_DIR}/.git")
+            message(STATUS "[${LIB_NAME}] Cache dir present but not a git repo; scrubbing for a clean clone")
+            file(REMOVE_RECURSE "${CACHED_LIB_DIR}")
+            file(REMOVE_RECURSE "${CMAKE_CURRENT_BINARY_DIR}/_deps/${LIB_NAME_LOWER}-subbuild")
+        endif()
+
         # Create cache directory structure
         file(MAKE_DIRECTORY "${CACHE_DIR}/${LIB_NAME}")
 
