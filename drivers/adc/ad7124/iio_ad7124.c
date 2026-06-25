@@ -676,7 +676,8 @@ static int32_t iio_ad7124_read_samples(void *dev, int32_t *buff,
 	} while (ch_id != test);
 	buff[i++] = value;
 
-	for (k = 0; k < nb_samples; k++) {
+	for (k = 1; k < nb_samples; k++) {
+		ch_id = -1;
 		while (get_next_ch_idx(mask, ch_id, &ch_id)) {
 			ret = ad7124_wait_for_conv_ready(desc, 10000);
 			if (ret != 0)
