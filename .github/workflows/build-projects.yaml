@@ -1,0 +1,49 @@
+name: Build NO-OS projects
+
+on:
+  workflow_dispatch:
+    inputs:
+      should_build_maxim:
+        default: 'true'
+      should_build_pico:
+        default: 'true'
+      should_build_mbed:
+        default: 'true'
+      should_build_stm32:
+        default: 'true'
+  pull_request:
+    branches:
+      - main
+      - next_stable
+      - release
+      - '20*'
+    paths-ignore:
+      - '**/*.rst'
+      - '**/*.md'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.rst'
+      - '**/*.md'
+
+jobs:
+  changed-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Filter changed files
+        id: filtered-files
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d #v3
+        with:
+          list-files: json
+          filters: .github/config/filters.yaml
+      - name: Detect builds
+        shell: sh
+        run: |
+          ${{ github.workspace }}/.github/scripts/detect-builds.sh
+        env:
+          CHANGED_FILES: ${{ toJson(steps.filtered-files.outputs) }}

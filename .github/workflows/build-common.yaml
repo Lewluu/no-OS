@@ -1,0 +1,49 @@
+name: Main build workflow for no-os
+
+on:
+  pull_request:
+    branches:
+      - main
+      - staging/*
+      - next_stable
+      - '20*'
+
+permissions:
+  contents: read
+
+env:
+  NUM_JOBS: 4
+
+jobs:
+  checkers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Astyle check
+        shell: sh
+        run: |
+          ${{ github.workspace }}/.github/scripts/astyle.sh
+        env:
+          NUM_JOBS: ${{ env.NUM_JOBS }}
+      - name: Check-cpp format
+        uses: analogdevicesinc/wiki-scripts/cpp-check@devops-actions
+        with:
+          paths: ${{ github.workspace }}
+          args: -j${{ env.NUM_JOBS }} --quiet --force --error-exitcode=1 --suppressions-list=${{ github.workspace }}/.cppcheckignore --library=${{ github.workspace }}/.github/config/config.cppcheck
+  build-drivers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Build drivers
+        shell: sh
+        run: |
+          sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
+          make -j${NUM_JOBS} -C ${{ github.workspace }}/drivers -f Makefile
+
+      
