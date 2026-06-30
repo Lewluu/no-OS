@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python3
 
 import argparse
 import json
@@ -135,6 +135,8 @@ def run_cmd(cmd):
 		log("See log %s " \
 		    "-- Use cat (linux) or type (windows) to see colored output"
 		    % log_file)
+		# TEST
+		os.system(f"cat {log_file}")
 		ERR = 1
 
 	return err
@@ -379,7 +381,8 @@ def main():
 					if hardware in blacklist:
 						continue
 					env = dict(os.environ)
-					shell_source(environment_path_files + platform + "_environment.sh")
+					if platform not in ["mbed", "pico"]:
+						shell_source(environment_path_files + platform + "_environment.sh")
 
 					new_build = BuildConfig(project_dir,
 								platform,

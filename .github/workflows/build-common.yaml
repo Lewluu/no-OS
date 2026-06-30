@@ -21,7 +21,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          submodules: recursive
+          fetch-depth: 50
+          clean: true
       - name: Astyle check
         shell: sh
         run: |
@@ -31,8 +32,8 @@ jobs:
       - name: Check-cpp format
         uses: analogdevicesinc/wiki-scripts/cpp-check@devops-actions
         with:
-          paths: ${{ github.workspace }}
-          args: -j${{ env.NUM_JOBS }} --quiet --force --error-exitcode=1 --suppressions-list=${{ github.workspace }}/.cppcheckignore --library=${{ github.workspace }}/.github/config/config.cppcheck
+          paths: .
+          args: -j${{ env.NUM_JOBS }} --quiet --force --error-exitcode=1 --suppressions-list=.cppcheckignore --library=.github/config/config.cppcheck
   build-drivers:
     runs-on: ubuntu-latest
     steps:
