@@ -1,0 +1,119 @@
+name: Build NO-OS projects
+
+on:
+  pull_request:
+    branches:
+      - main
+      - next_stable
+      - release
+      - '20*'
+    paths-ignore:
+      - '**/*.rst'
+      - '**/*.md'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.rst'
+      - '**/*.md'
+
+permissions:
+  contents: read
+  id-token: write
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-projects:
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: ["ubuntu-latest"]
+        platform: ["pico", "maxim", "aducm3029"]
+    runs-on: ${{ matrix.runs-on }}
+    env:
+      RELEASES_DIR: ${{ github.workspace }}/latest_build
+      LOGS_DIR: ${{ github.workspace }}/logs
+      BUILDS_DIR: ${{ github.workspace }}/builds
+      CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+      TOOLS_REPO: ${{ secrets.TOOLS_REPO }}
+      BLACKLIST_URL: ${{ secrets.BLACKLIST_URL }}
+      NUM_JOBS: 4
+      HDL_BRANCH: 'main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Setup cloudsmith
+        uses: cloudsmith-io/cloudsmith-cli-action@159f1619275d5d3147f059c3cc110938ec221d16  # @v2
+        with:
+          api-key: ${{ env.CLOUDSMITH_API_KEY }}
+      - name: Setup build tools
+        shell: sh
+        run: |
+          ${{ github.workspace }}/.github/scripts/install-build-tools.sh
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          WORKSPACE: ${{ github.workspace }}
+          TOOLS_REPO: ${{ env.TOOLS_REPO }}
+      - name: Build project
+        shell: sh
+        run: |
+          echo "Setup cloudsmith helper ..."
+          wget -P ./tools/scripts/ \
+            https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py
+          
+          echo "Running project build ..."
+          ${{ github.workspace }}/tools/scripts/build_projects.py \
+            ${{ github.workspace }} \
+            -export_dir ${{ env.RELEASES_DIR }} \
+            -log_dir ${{ env.LOGS_DIR }} \
+            -builds_dir ${{ env.BUILDS_DIR }} \
+            -platform ${{ matrix.platform }} \
+            -hdl_branch ${{ env.HDL_BRANCH }}
+        env:
+          CLOUDSMITH_API_KEY: ${{ env.CLOUDSMITH_API_KEY }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.RELEASES_DIR }}
+          name: release_${{ matrix.platform }}_${{ github.job }}
+      - name: Upload logs artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.LOGS_DIR }}
+          name: logs_${{ matrix.platform }}_${{ github.job }}
+  unit-tests:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Setup test tools
+        shell: bash
+        run: |
+          sudo apt-get install ruby-full
+          sudo gem install ceedling
+          pip install gcovr==4.1
+          find tests -name "project.yml" -type f | while read project_file; do
+            dir=$(dirname "$project_file")
+            cd "$dir" && ceedling test:all && cd -
+          done
+      - name: Publish test results
+        uses: mikepenz/action-junit-report@bccf2e31636835cf0874589931c4116687171386   # @v6.4.0
+        with:
+          report_paths: tests/drivers/**/build/artifacts/test/*.xml
+          include_passed: true
+          pr_id: ${{github.event.pull_request.number}}
+          comment: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          updateComment: true
+

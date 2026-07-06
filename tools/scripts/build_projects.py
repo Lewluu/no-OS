@@ -1,4 +1,4 @@
-#!/bin/python
+#!/usr/bin/env python3
 
 import argparse
 import json
@@ -153,6 +153,7 @@ def run_cmd(cmd):
 		log("See log %s " \
 		    "-- Use cat (linux) or type (windows) to see colored output"
 		    % log_file)
+		os.system(f"cat {log_file}")
 		ERR = 1
 
 	return err
@@ -282,7 +283,7 @@ class BuildConfig:
 			self.build_dir = os.path.join(self.builds_dir, short_build_dir)
 		self.binary = os.path.join(self.build_dir, self._binary)
 		self.export_file = os.path.join(self.build_dir, self.binary)
-		if (platform == 'aducm3029' or platform == 'stm32' or platform == 'maxim'):
+		if (platform == 'stm32'):
 			self.export_elf_file = self.export_file
 			self.export_file = self.export_file.replace('.elf', '.hex')
 		if (platform == 'xilinx'):
@@ -399,7 +400,8 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 
 		# Bring in the platform SDK environment (MAXIM_LIBRARIES, STM32CUBEMX, ...).
 		env = dict(os.environ)
-		shell_source(environment_path_files + platform + "_environment.sh")
+		if platform not in ["maxim", "pico", "aducm3029"]:
+			shell_source(environment_path_files + platform + "_environment.sh")
 
 		# The final link + .hex/.bin generation runs as a custom command whose
 		# failure does NOT report as a non-zero exit. So the .elf is the source
@@ -439,6 +441,7 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 		if not success:
 			log_err("ERROR")
 			log("See log %s" % dst_log)
+			os.system(f"cat {dst_log}")
 			ERR = 1
 
 		# The final link + .hex/.bin runs as a cmake custom command whose failure
@@ -446,6 +449,7 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 		if success and not elf.is_file():
 			log_err("ERROR")
 			log("See log %s -- no .elf produced (link likely failed)" % dst_log)
+			os.system(f"cat {dst_log}")
 			ERR = 1
 			success = False
 
@@ -530,7 +534,8 @@ def main():
 						continue
 					legacy_ran = True
 					env = dict(os.environ)
-					shell_source(environment_path_files + platform + "_environment.sh")
+					if platform not in ["maxim", "pico", "aducm3029"]:
+						shell_source(environment_path_files + platform + "_environment.sh")
 
 					new_build = BuildConfig(project_dir,
 								platform,
