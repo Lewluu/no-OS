@@ -46,6 +46,8 @@ elif [[ "$PLATFORM" == "maxim" ]]; then
     sudo chmod +x MaximMicrosSDK_linux.run
     sudo ./MaximMicrosSDK_linux.run in --root ~/MaximSDK --accept-licenses --accept-messages --confirm-command
     echo "MAXIM_LIBRARIES=/home/runner/MaximSDK/Libraries" >> $GITHUB_ENV
+elif [[ "$PLATFORM" == "xilinx" ]]; then
+    source ${XILINX_SETTINGS}
 elif [[ "$PLATFORM" == "aducm3029" ]]; then
     # Install i386 architecture dependencies 
     sudo dpkg --add-architecture i386

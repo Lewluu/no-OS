@@ -32,27 +32,39 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: ["ubuntu-latest"]
-        platform: ["pico", "maxim", "aducm3029"]
-    runs-on: ${{ matrix.runs-on }}
+        include:
+          - runs-on: "arc-no-os"
+            platform: "xilinx"
+          # - runs-on: "arc-no-os"
+	  #   platform: "stm32"
     env:
-      RELEASES_DIR: ${{ github.workspace }}/latest_build
-      LOGS_DIR: ${{ github.workspace }}/logs
-      BUILDS_DIR: ${{ github.workspace }}/builds
       CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
       TOOLS_REPO: ${{ secrets.TOOLS_REPO }}
       BLACKLIST_URL: ${{ secrets.BLACKLIST_URL }}
+      XILINX_SETTINGS: ${{ secrets.XILINX_SETTINGS }} 
       NUM_JOBS: 4
       HDL_BRANCH: 'main'
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           submodules: recursive
-      - name: Setup cloudsmith
-        uses: cloudsmith-io/cloudsmith-cli-action@159f1619275d5d3147f059c3cc110938ec221d16  # @v2
-        with:
-          api-key: ${{ env.CLOUDSMITH_API_KEY }}
+      - name: Setup workspace
+        shell: bash
+        run: |
+          # if [[ ${{ matrix.platform }} == "stm32" || ${{ matrix.platform }} == "xilinx" ]]; then
+          #   echo "RELEASES_DIR=${{ secrets.PRIVATE_WORKSPACE }}/latest_build" >> $GITHUB_ENV
+          #   echo "LOGS_DIR=${{ secrets.PRIVATE_WORKSPACE }}/logs" >> $GITHUB_ENV
+          #   echo "BUILDS_DIR=${{ secrets.PRIVATE_WORKSPACE }}/builds" >> $GITHUB_ENV
+          # else
+          #   echo "RELEASES_DIR=${{ github.workspace }}/latest_build" >> $GITHUB_ENV
+          #   echo "LOGS_DIR=${{ github.workspace }}/logs" >> $GITHUB_ENV
+          #   echo "BUILDS_DIR=${{ github.workspace }}/builds" >> $GITHUB_ENV
+          # fi
+          echo "RELEASES_DIR=${{ github.workspace }}/latest_build" >> $GITHUB_ENV
+          echo "LOGS_DIR=${{ github.workspace }}/logs" >> $GITHUB_ENV
+          echo "BUILDS_DIR=${{ github.workspace }}/builds" >> $GITHUB_ENV
       - name: Setup build tools
         shell: sh
         run: |
@@ -67,6 +79,7 @@ jobs:
           echo "Setup cloudsmith helper ..."
           wget -P ./tools/scripts/ \
             https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py
+          cat tools/scripts/cloudsmith_helper.py | sed 's#/usr/bin/python3#/usr/bin/env python3#' > tools/scripts/cloudsmith_helper.py
           
           echo "Running project build ..."
           ${{ github.workspace }}/tools/scripts/build_projects.py \
@@ -78,7 +91,7 @@ jobs:
             -hdl_branch ${{ env.HDL_BRANCH }}
         env:
           CLOUDSMITH_API_KEY: ${{ env.CLOUDSMITH_API_KEY }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.GH_IS_TOKEN }}
       - name: Upload release artifact
         uses: actions/upload-artifact@v7
         with:
