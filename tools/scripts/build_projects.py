@@ -429,7 +429,7 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 
 		# Bring in the platform SDK environment (MAXIM_LIBRARIES, STM32CUBEMX, ...).
 		env = dict(os.environ)
-		if platform not in ["maxim", "pico", "aducm3029"]:
+		if platform not in ["maxim", "pico", "aducm3029", "xilinx"]:
 			shell_source(environment_path_files + platform + "_environment.sh")
 
 		# The final link + .hex/.bin generation runs as a custom command whose
@@ -563,7 +563,7 @@ def main():
 						continue
 					legacy_ran = True
 					env = dict(os.environ)
-					if platform not in ["maxim", "pico", "aducm3029"]:
+					if platform not in ["maxim", "pico", "aducm3029", "xilinx"]:
 						shell_source(environment_path_files + platform + "_environment.sh")
 
 					new_build = BuildConfig(project_dir,
