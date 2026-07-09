@@ -83,7 +83,7 @@ jobs:
           
           echo "Show cloudsmith helper header"
           head -n 10 tools/scripts/cloudsmith_helper.py
-
+          python3 -m pip install requests
           echo "Running project build ..."
           ${{ github.workspace }}/tools/scripts/build_projects.py \
             ${{ github.workspace }} \
