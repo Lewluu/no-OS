@@ -252,7 +252,8 @@ def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
 		err = os.system(download_cmd)
 		if err != 0:
 			log_err("configfile_and_download_all_hw: download_files.py failed with exit code %d" % err)
-			return
+			exit("download_files.py failed")
+
 	else:
 		log("configfile_and_download_all_hw: platform=%s, skipping xilinx hardware download" % _platform)
 	log("configfile_and_download_all_hw: returning builds_dir=%s, blacklist=%s" % (builds_dir, blacklist))
