@@ -79,7 +79,7 @@ jobs:
           echo "Setup cloudsmith helper ..."
           wget -P ./tools/scripts/ \
             https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py
-          cat tools/scripts/cloudsmith_helper.py | sed 's#/usr/bin/python3#/usr/bin/env python3#' > tools/scripts/cloudsmith_helper.py
+          sed -i 's#/usr/bin/python3#/usr/bin/env python3#' tools/scripts/cloudsmith_helper.py
           
           echo "Running project build ..."
           ${{ github.workspace }}/tools/scripts/build_projects.py \
