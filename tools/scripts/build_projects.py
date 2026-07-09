@@ -247,7 +247,7 @@ def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
 		blacklist = process_blacklist()
 		new_hardwares = os.path.join(builds_dir, NEW_HW_DIR_NAME)
 		ensure_dir(new_hardwares)
-		download_cmd = "./{}/tools/scripts/download_files.py {} {} {} \"{}\"".format(noos, noos, builds_dir, server_full_path, blacklist)
+		download_cmd = "{}/tools/scripts/download_files.py {} {} {} \"{}\"".format(noos, noos, builds_dir, server_full_path, blacklist)
 		log("configfile_and_download_all_hw: running download: %s" % download_cmd)
 		err = os.system(download_cmd)
 		if err != 0:
