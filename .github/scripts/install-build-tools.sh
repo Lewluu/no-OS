@@ -48,6 +48,8 @@ elif [[ "$PLATFORM" == "maxim" ]]; then
     echo "MAXIM_LIBRARIES=/home/runner/MaximSDK/Libraries" >> $GITHUB_ENV
 elif [[ "$PLATFORM" == "xilinx" ]]; then
     source ${XILINX_SETTINGS}
+    echo "VIRTUAL_ENV=/home/runner/py-env" >> $GITHUB_ENV
+    echo "/home/runner/py-env/bin" >> $GITHUB_PATH
 elif [[ "$PLATFORM" == "aducm3029" ]]; then
     # Install i386 architecture dependencies 
     sudo dpkg --add-architecture i386
