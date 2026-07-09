@@ -68,7 +68,7 @@ def parse_input():
 ERR = 0
 LOG_START = " -> "
 TOKEN = os.environ.get('TOKEN')
-BRANCH = os.environ.get('BRANCH')
+BRANCH = os.environ.get('BRANCH', 'main')
 blacklist_url = str(os.environ.get('BLACKLIST_URL')).format(BRANCH)
 environment_path_files = os.environ.get('ENVIRONMENT_PATH_FILES')
 
@@ -173,61 +173,89 @@ NEW_HW_DIR_NAME = 'new_hardware'
 
 def process_blacklist():
 	blacklist = []
-	err = os.system('curl -L -H "Accept: application/vnd.github.v3.raw" -H "Authorization: Bearer {}" \'{}\' -o blacklist.txt >> {} 2>&1'
-				.format(TOKEN, blacklist_url, log_file))
+	log("process_blacklist: BRANCH=%s" % BRANCH)
+	log("process_blacklist: blacklist_url=%s" % blacklist_url)
+	log("process_blacklist: TOKEN=%s" % ("set (%d chars)" % len(TOKEN) if TOKEN else "NOT SET"))
+	curl_cmd = 'curl -L -H "Accept: application/vnd.github.v3.raw" -H "Authorization: Bearer {}" \'{}\' -o blacklist.txt >> {} 2>&1'.format(TOKEN, blacklist_url, log_file)
+	log("process_blacklist: downloading blacklist with: curl -L ... '%s' -o blacklist.txt" % blacklist_url)
+	err = os.system(curl_cmd)
 	if err != 0 or (not os.path.isfile('blacklist.txt')):
-		log_err('Can not download blacklist file')
+		log_err('Can not download blacklist file (exit code: %d, file exists: %s)' % (err, os.path.isfile('blacklist.txt')))
 		return blacklist
 	file = open('blacklist.txt', 'r')
 	for line in file.readlines():
 		project = line.split('#')[0].rstrip().replace('.', '_')
 		if project != '':
 			blacklist.append(project)
+	log("process_blacklist: loaded %d blacklisted projects: %s" % (len(blacklist), blacklist))
 	return blacklist
 
 def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
+	log("configfile_and_download_all_hw: called with platform=%s, noos=%s, builds_dir=%s, hdl_branch=%s"
+	    % (_platform, noos, _builds_dir, hdl_branch))
 	server_base_path="hdl/"
 	hdl_repo = 'sdg-hdl'
 	pattern = '\d{4}_\d{2}_\d{2}-\d{2}_\d{2}_\d{2}'
 	blacklist = []
 	timestamp_match = re.search(pattern, hdl_branch)
 	if timestamp_match:
-		hdl_branch = re.split('\/', hdl_branch)[0]
 		timestamp_folder = timestamp_match.group()
+		hdl_branch = re.split('\/', hdl_branch)[0]
+		log("configfile_and_download_all_hw: timestamp detected: %s, branch extracted: %s" % (timestamp_folder, hdl_branch))
 
 	if hdl_branch == "main":
 		hdl_branch_path = hdl_branch + '/hdl_output/'
+		log("configfile_and_download_all_hw: using main branch path: %s" % hdl_branch_path)
 	else:
-		if check_path(package_version=server_base_path + 'releases/' + hdl_branch + '/', repo=hdl_repo):
+		releases_path = server_base_path + 'releases/' + hdl_branch + '/'
+		dev_path = server_base_path + 'dev/' + hdl_branch + '/'
+		log("configfile_and_download_all_hw: checking releases path: %s (repo=%s)" % (releases_path, hdl_repo))
+		if check_path(package_version=releases_path, repo=hdl_repo):
 			hdl_branch_path = 'releases/' + hdl_branch + '/hdl_output/'
-		elif check_path(package_version=server_base_path + 'dev/' + hdl_branch + '/', repo=hdl_repo):
-			hdl_branch_path = 'dev/' + hdl_branch + '/hdl_output/'
+			log("configfile_and_download_all_hw: found in releases: %s" % hdl_branch_path)
 		else:
-			print("Error related to hdl branch name: " + hdl_branch)
-			exit()
+			log("configfile_and_download_all_hw: not in releases, checking dev path: %s" % dev_path)
+			if check_path(package_version=dev_path, repo=hdl_repo):
+				hdl_branch_path = 'dev/' + hdl_branch + '/hdl_output/'
+				log("configfile_and_download_all_hw: found in dev: %s" % hdl_branch_path)
+			else:
+				log_err("configfile_and_download_all_hw: hdl_branch '%s' not found in releases or dev" % hdl_branch)
+				exit()
 
 	if timestamp_match:
-		if check_path(package_version=server_base_path + hdl_branch_path + timestamp_folder + '/', repo=hdl_repo):
+		ts_check_path = server_base_path + hdl_branch_path + timestamp_folder + '/'
+		log("configfile_and_download_all_hw: checking timestamp path: %s" % ts_check_path)
+		if check_path(package_version=ts_check_path, repo=hdl_repo):
 			hdl_branch_path += timestamp_folder + '/'
+			log("configfile_and_download_all_hw: timestamp path resolved: %s" % hdl_branch_path)
 		else:
-			print("Error related to timestamp folder: " + timestamp_folder + " not existing in hdl_branch: " + hdl_branch)
+			log_err("configfile_and_download_all_hw: timestamp folder '%s' not found in branch '%s'" % (timestamp_folder, hdl_branch))
 			exit()
 
 	builds_dir = _builds_dir + '_' + hdl_branch
+	log("configfile_and_download_all_hw: builds_dir=%s" % builds_dir)
 	ensure_dir(builds_dir)
 	if SKIP_DOWNLOAD == 1:
+		log("configfile_and_download_all_hw: SKIP_DOWNLOAD=1, skipping hardware download")
 		return (builds_dir, [])
 	hardwares = os.path.join(builds_dir, HW_DIR_NAME)
 	ensure_dir(hardwares)
 	server_full_path = server_base_path + hdl_branch_path
+	log("configfile_and_download_all_hw: server_full_path=%s" % server_full_path)
 	if (_platform is None or _platform == 'xilinx'):
+		log("configfile_and_download_all_hw: platform is xilinx or unset, downloading hardware files")
 		blacklist = process_blacklist()
 		new_hardwares = os.path.join(builds_dir, NEW_HW_DIR_NAME)
 		ensure_dir(new_hardwares)
-		err = os.system("python3 {}/tools/scripts/download_files.py {} {} {} \"{}\""
-				  .format(noos, noos, builds_dir, server_full_path, blacklist))
+		download_cmd = "python3 {}/tools/scripts/download_files.py {} {} {} \"{}\"".format(noos, noos, builds_dir, server_full_path, blacklist)
+		log("configfile_and_download_all_hw: running download: %s" % download_cmd)
+		err = os.system(download_cmd)
 		if err != 0:
+			log_err("configfile_and_download_all_hw: download_files.py failed with exit code %d" % err)
 			return
+	else:
+		log("configfile_and_download_all_hw: platform=%s, skipping xilinx hardware download" % _platform)
+	log("configfile_and_download_all_hw: returning builds_dir=%s, blacklist=%s" % (builds_dir, blacklist))
 	return (builds_dir, blacklist)
 
 def get_hardware(hardware, platform, builds_dir):
