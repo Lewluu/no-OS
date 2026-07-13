@@ -52,7 +52,6 @@ jobs:
       BLACKLIST_URL: ${{ secrets.BLACKLIST_URL }}
       NUM_JOBS: 4
       HDL_BRANCH: 'main'
-      VIRTUAL_ENV: /home/runner/py-env
     container:
       image: ${{ matrix.container }}
       credentials:
@@ -72,6 +71,7 @@ jobs:
           ${{ github.workspace }}/.github/scripts/setup-platform-env.sh
         env:
           PLATFORM: ${{ matrix.platform }}
+          WORKSPACE: ${{ github.workspace }}
       - name: Build project
         shell: sh
         run: |
