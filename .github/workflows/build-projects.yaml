@@ -32,8 +32,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: ["ubuntu-latest"]
-        platform: ["pico", "maxim", "aducm3029"]
+        include:
+          - runs-on: "ubuntu-latest"
+            platform: "pico"
+            container: "docker.cloudsmith.io/adi/devops-cj-images/pico-platform:1.0.0"
+          - runs-on: "ubuntu-latest"
+            platform: "maxim"
+            container: "docker.cloudsmith.io/adi/devops-cj-images/maxim-platform:1.0.0"
+          - runs-on: "ubuntu-latest"
+            platform: "aducm3029"
+            container: ""
     runs-on: ${{ matrix.runs-on }}
     env:
       RELEASES_DIR: ${{ github.workspace }}/latest_build
@@ -44,23 +52,26 @@ jobs:
       BLACKLIST_URL: ${{ secrets.BLACKLIST_URL }}
       NUM_JOBS: 4
       HDL_BRANCH: 'main'
+      VIRTUAL_ENV: /home/runner/py-env
+    container:
+      image: ${{ matrix.container }}
+      credentials:
+        username: ${{ secrets.CLOUDSMITH_USER }}
+        password: ${{ secrets.CLOUDSMITH_API_KEY }}
+      volumes:
+        - ${{ github.workspace }}:${{ github.workspace }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           submodules: recursive
-      - name: Setup cloudsmith
-        uses: cloudsmith-io/cloudsmith-cli-action@159f1619275d5d3147f059c3cc110938ec221d16  # @v2
-        with:
-          api-key: ${{ env.CLOUDSMITH_API_KEY }}
-      - name: Setup build tools
+          path: ${{ github.workspace }}
+      - name: Setup platform env
         shell: sh
         run: |
-          ${{ github.workspace }}/.github/scripts/install-build-tools.sh
+          ${{ github.workspace }}/.github/scripts/setup-platform-env.sh
         env:
           PLATFORM: ${{ matrix.platform }}
-          WORKSPACE: ${{ github.workspace }}
-          TOOLS_REPO: ${{ env.TOOLS_REPO }}
       - name: Build project
         shell: sh
         run: |
