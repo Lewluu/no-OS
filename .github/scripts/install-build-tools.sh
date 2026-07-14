@@ -50,8 +50,14 @@ elif [[ "$PLATFORM" == "xilinx" ]]; then
     # source ${XILINX_SETTINGS}
     echo "VIRTUAL_ENV=/home/runner/py-env" >> $GITHUB_ENV
     echo "/home/runner/py-env/bin" >> $GITHUB_PATH
+    source ${VIVADO_SETTINGS}
+    # Xvfb :99 -screen 0 1024x768x24 &
+    # export DISPLAY=:99
+    # sleep 1
     cloudsmith download ${TOOLS_REPO} new_hardware.tar.gz --version 1.0.0
     tar -xzvf new_hardware.tar.gz --strip-components 1
+    cloudsmith download ${TOOLS_REPO} hardware.tar.gz --version 1.0.0
+    tar -xzvf hardware.tar.gz --strip-components 1
     
 elif [[ "$PLATFORM" == "aducm3029" ]]; then
     # Install i386 architecture dependencies 

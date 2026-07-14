@@ -556,11 +556,16 @@ def main():
 					hardwares = [""]
 				
 				for hardware in hardwares:
+					# Pull project binaries - TEST
+					log("Downloading project binaries from cloudsmith ...")
+					os.system(f"cloudsmith download {os.environ["TOOLS_REPO"]} build_xilinx_{hardware}.tar.gz --version 1.0.0 --overwrite")
+					os.system(f"tar -xzf build_xilinx_{hardware}.tar.gz --strip-components 1")
+
 					if _hw is not None:
 						if _hw != hardware:
 							continue
-					if hardware in blacklist:
-						continue
+					# if hardware in blacklist:
+					# 	continue
 					legacy_ran = True
 					env = dict(os.environ)
 					if platform not in ["maxim", "pico", "aducm3029", "xilinx"]:
@@ -576,6 +581,7 @@ def main():
 					err = new_build.build()
 					os.environ.clear()
 					os.environ.update(env)
+
 					if err != 0:
 						ok = 0
 						if err == 2:
