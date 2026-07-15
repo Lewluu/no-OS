@@ -153,7 +153,7 @@ def run_cmd(cmd):
 		log("See log %s " \
 		    "-- Use cat (linux) or type (windows) to see colored output"
 		    % log_file)
-		os.system(f"cat {log_file}")
+		os.system("cat %s" % log_file)
 		ERR = 1
 
 	return err
@@ -232,7 +232,7 @@ def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
 			log_err("configfile_and_download_all_hw: timestamp folder '%s' not found in branch '%s'" % (timestamp_folder, hdl_branch))
 			exit()
 
-	builds_dir = _builds_dir + '_' + hdl_branch
+	builds_dir = _builds_dir + '_' + hdl_branch + '/' + os.environ["GITHUB_SHA"]
 	log("configfile_and_download_all_hw: builds_dir=%s" % builds_dir)
 	ensure_dir(builds_dir)
 	if SKIP_DOWNLOAD == 1:
@@ -470,7 +470,7 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 		if not success:
 			log_err("ERROR")
 			log("See log %s" % dst_log)
-			os.system(f"cat {dst_log}")
+			os.system("cat %s" % dst_log)
 			ERR = 1
 
 		# The final link + .hex/.bin runs as a cmake custom command whose failure
@@ -478,7 +478,7 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 		if success and not elf.is_file():
 			log_err("ERROR")
 			log("See log %s -- no .elf produced (link likely failed)" % dst_log)
-			os.system(f"cat {dst_log}")
+			os.system("cat %s" % dst_log)
 			ERR = 1
 			success = False
 
@@ -558,8 +558,8 @@ def main():
 				for hardware in hardwares:
 					# Pull project binaries - TEST
 					log("Downloading project binaries from cloudsmith ...")
-					os.system(f"cloudsmith download {os.environ["TOOLS_REPO"]} build_xilinx_{hardware}.tar.gz --version 1.0.0 --overwrite")
-					os.system(f"tar -xzf build_xilinx_{hardware}.tar.gz --strip-components 1")
+					os.system("cloudsmith download %s build_xilinx_%s.tar.gz --tag latest --outfile %s/build_xilinx_%s.tar.gz --overwrite" % (os.environ["TOOLS_REPO"], hardware, builds_dir, hardware))
+					os.system("tar -xzf %s/build_xilinx_%s.tar.gz -C %s --strip-components 2" % (builds_dir, hardware, builds_dir))
 
 					if _hw is not None:
 						if _hw != hardware:
@@ -605,6 +605,7 @@ def main():
 							run_cmd("cp %s %s" %
 								(new_build.export_elf_file, project_export))
 							binary_created = True
+					os.system("rm %s/build_xilinx_%s.tar.gz" % (builds_dir, hardware))
 			
 		fp.close()
 

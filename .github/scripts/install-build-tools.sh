@@ -47,17 +47,23 @@ elif [[ "$PLATFORM" == "maxim" ]]; then
     sudo ./MaximMicrosSDK_linux.run in --root ~/MaximSDK --accept-licenses --accept-messages --confirm-command
     echo "MAXIM_LIBRARIES=/home/runner/MaximSDK/Libraries" >> $GITHUB_ENV
 elif [[ "$PLATFORM" == "xilinx" ]]; then
-    # source ${XILINX_SETTINGS}
-    echo "VIRTUAL_ENV=/home/runner/py-env" >> $GITHUB_ENV
-    echo "/home/runner/py-env/bin" >> $GITHUB_PATH
-    source ${VIVADO_SETTINGS}
-    # Xvfb :99 -screen 0 1024x768x24 &
-    # export DISPLAY=:99
-    # sleep 1
-    cloudsmith download ${TOOLS_REPO} new_hardware.tar.gz --version 1.0.0
-    tar -xzvf new_hardware.tar.gz --strip-components 1
-    cloudsmith download ${TOOLS_REPO} hardware.tar.gz --version 1.0.0
-    tar -xzvf hardware.tar.gz --strip-components 1
+    echo "VIVADO_VERSION=2023.2" >> $GITHUB_ENV
+    echo "VIVADO_TOOLCHAIN_PATH=$VITIS_PATH/gnu/aarch32/lin/gcc-arm-linux-gnueabi" >> $GITHUB_ENV
+    echo "VIVADO_SETTINGS=$VIVADO_PATH/settings64.sh" >> $GITHUB_ENV
+    echo "CROSS_COMPILE=$VITIS_PATH/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin/arm-linux-gnueabihf-" >> $GITHUB_ENV
+    echo "XILINX_VIVADO=$VIVADO_PATH" >> $GITHUB_ENV
+    echo "XILINX_HLS=/opt/Xilinx/Vitis_HLS/2023.2" >> $GITHUB_ENV
+    echo "XILINX_VITIS=$VITIS_PATH" >> $GITHUB_ENV
+    echo "PATH=/opt/Xilinx/Vitis_HLS/2023.2/bin:/opt/Xilinx/Model_Composer/2023.2/bin:$VITIS_PATH/bin:$VITIS_PATH/gnu/microblaze/lin/bin:$VITIS_PATH/gnu/microblaze/linux_toolchain/lin64_le/bin:$VITIS_PATH/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin:$VITIS_PATH/gnu/aarch32/lin/gcc-arm-none-eabi/bin:$VITIS_PATH/gnu/aarch64/lin/aarch64-linux/bin:$VITIS_PATH/gnu/aarch64/lin/aarch64-none/bin:$VITIS_PATH/gnu/armr5/lin/gcc-arm-none-eabi/bin:$VITIS_PATH/tps/lnx64/cmake-3.3.2/bin:$VITIS_PATH/aietools/bin:$VITIS_PATH/gnu/riscv/lin/riscv64-unknown-elf/bin:$VIVADO_PATH/bin:/opt/Xilinx/DocNav:$PATH" >> $GITHUB_ENV
+    
+    mkdir -p ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA}
+    sudo apt-get install python3
+    python3 -m pip install cloudsmith-cli
+    cloudsmith download ${TOOLS_REPO} new_hardware.tar.gz --tag latest --outfile ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA}/new_hardware.tar.gz
+    tar -xzvf ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA}/new_hardware.tar.gz -C ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA} --strip-components 2
+    
+    cloudsmith download ${TOOLS_REPO} hardware.tar.gz --tag latest --outfile ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA}/hardware.tar.gz
+    tar -xzvf ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA}/hardware.tar.gz -C ${BUILDS_DIR}_${HDL_BRANCH}/${GITHUB_SHA} --strip-components 2
     
 elif [[ "$PLATFORM" == "aducm3029" ]]; then
     # Install i386 architecture dependencies 

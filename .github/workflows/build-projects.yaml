@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runs-on: "arc-no-os"
+          - runs-on: "noos-runner"
             platform: "xilinx"
           # - runs-on: "arc-no-os"
           #   platform: "stm32"
@@ -44,27 +44,28 @@ jobs:
       XILINX_SETTINGS: ${{ secrets.XILINX_SETTINGS }} 
       NUM_JOBS: 4
       HDL_BRANCH: 'main'
+      VIVADO_SETTINGS: ${{ secrets.VIVADO_SETTINGS }}
+      PRIVATE_WORKSPACE: '/usr/local/etc/gh-runners/no-os'
+      VIVADO_PATH: ${{ secrets.VIVADO_PATH }}
+      VITIS_PATH: ${{ secrets.VITIS_PATH }}
     runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          submodules: recursive
+          submodules: ${{ matrix.platform == 'xilinx' && 'false' || matrix.platform == 'stm32' && 'false' || 'recursive' }}
       - name: Setup workspace
         shell: bash
         run: |
-          # if [[ ${{ matrix.platform }} == "stm32" || ${{ matrix.platform }} == "xilinx" ]]; then
-          #   echo "RELEASES_DIR=${{ secrets.PRIVATE_WORKSPACE }}/latest_build" >> $GITHUB_ENV
-          #   echo "LOGS_DIR=${{ secrets.PRIVATE_WORKSPACE }}/logs" >> $GITHUB_ENV
-          #   echo "BUILDS_DIR=${{ secrets.PRIVATE_WORKSPACE }}/builds" >> $GITHUB_ENV
-          # else
-          #   echo "RELEASES_DIR=${{ github.workspace }}/latest_build" >> $GITHUB_ENV
-          #   echo "LOGS_DIR=${{ github.workspace }}/logs" >> $GITHUB_ENV
-          #   echo "BUILDS_DIR=${{ github.workspace }}/builds" >> $GITHUB_ENV
-          # fi
-          echo "RELEASES_DIR=${{ github.workspace }}/latest_build" >> $GITHUB_ENV
-          echo "LOGS_DIR=${{ github.workspace }}/logs" >> $GITHUB_ENV
-          echo "BUILDS_DIR=${{ github.workspace }}/builds" >> $GITHUB_ENV
+          if [[ ${{ matrix.platform }} == "stm32" || ${{ matrix.platform }} == "xilinx" ]]; then
+            echo "RELEASES_DIR=${{ env.PRIVATE_WORKSPACE }}/latest_build" >> $GITHUB_ENV
+            echo "LOGS_DIR=${{ env.PRIVATE_WORKSPACE }}/logs" >> $GITHUB_ENV
+            echo "BUILDS_DIR=${{ env.PRIVATE_WORKSPACE }}/builds" >> $GITHUB_ENV
+          else
+            echo "RELEASES_DIR=${{ github.workspace }}/latest_build" >> $GITHUB_ENV
+            echo "LOGS_DIR=${{ github.workspace }}/logs" >> $GITHUB_ENV
+            echo "BUILDS_DIR=${{ github.workspace }}/builds" >> $GITHUB_ENV
+          fi
       - name: Setup build tools
         shell: sh
         env:
@@ -81,13 +82,11 @@ jobs:
             https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py -O ./tools/scripts/cloudsmith_temp.py
           cat tools/scripts/cloudsmith_temp.py | sed 's#/usr/bin/python3#/usr/bin/env python3#' > tools/scripts/cloudsmith_helper.py
           
-
-          # python3 -m pip install requests
           echo "Running project build ..."
           ${{ github.workspace }}/tools/scripts/build_projects.py \
             ${{ github.workspace }} \
             -export_dir ${{ env.RELEASES_DIR }} \
-            -log_dir ${{ env.LOGS_DIR }} \
+            -log_dir ${{ env.LOGS_DIR }}/${GITHUB_SHA} \
             -builds_dir ${{ env.BUILDS_DIR }} \
             -platform ${{ matrix.platform }} \
             -hdl_branch ${{ env.HDL_BRANCH }}
