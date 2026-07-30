@@ -54,7 +54,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  check-changes:
+  check-changed-projects:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -64,7 +64,8 @@ jobs:
       - name: Get changed files
         id: changed-files
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
-      - name: List changed files
+      - name: Get changed projects
+        id: projects-list
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         shell: bash
@@ -72,27 +73,27 @@ jobs:
           projects=""
           for file in ${ALL_CHANGED_FILES}; do
             if [[ \
-              "$file" == *"board_configs"* || "$file" == *"capi"* || "$file" == *"cmake"* || "$file" == *"drivers"* \
-              || "$file" == *"iio"* || "$file" == *"include"* || "$file" == *"jesd204"* || "$file" == *"libraries"* \
-              || "$file" == *"network"* || "$file" == "*tests*" || "$file" == "*tools*" || "$file" == "*util*" \
-              || "$file" == *"build-xilinx-platform.yaml"* || "$file" == "CMakeLists.txt" || "file" == "CMakePresets.json" \
-              || "$file" == "Kconfig" ]]; \
+              "$file" == *"board_configs/"* || "$file" == *"capi/"* || "$file" == *"cmake/"* || "$file" == *"drivers/"* \
+              || "$file" == *"iio/"* || "$file" == *"include/"* || "$file" == *"jesd204/"* || "$file" == *"libraries/"* \
+              || "$file" == *"network/"* || "$file" == *"tests/"* || "$file" == *"tools/"* || "$file" == *"util/"* \
+              || "$file" == "CMakeLists.txt" || "file" == "CMakePresets.json" || "$file" == "Kconfig" ]]; \
               then
               
+              echo "$file"
               echo "Dependecy paths were modified. Building whole projects."
               echo "PROJECTS=all" >> $GITHUB_ENV
               
               break
             else
-              projects="$projects $file" 
-              echo "PROJECTS=$projects" >> $GITHUB_ENV
+              project=$(echo $file | cut -d "/" -f2)
+              projects="$projects $project" 
+              echo "projects=$projects" >> $GITHUB_OUTPUT
             fi
           done
-      - name: List projects
-        shell: sh
-        run: |
-          echo "${{ env.PROJECTS }}"
+    outputs:
+      projects-list: ${{ steps.projects-list.outputs.projects }}
   build-xilinx-projects:
+    needs: check-changed-projects
     env:
       CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
       TOOLS_REPO: ${{ secrets.TOOLS_REPO }}
@@ -103,6 +104,7 @@ jobs:
       RELEASES_DIR: ${{ github.workspace }}/latest_build
       LOGS_DIR: ${{ github.workspace }}/logs
       NO_OS_CACHE_DIR: ${{ github.workspace }}/deps_cache
+      PROJECTS_LIST: ${{ needs.check-changed-projects.outputs.projects-list }}
     runs-on: noos-runner-xilinx
     steps:
       - name: Checkout code
@@ -118,7 +120,7 @@ jobs:
             -O ./tools/scripts/cloudsmith_temp.py
           cat tools/scripts/cloudsmith_temp.py | sed 's#/usr/bin/python3#/usr/bin/env python3#' > tools/scripts/cloudsmith_helper.py
           rm tools/scripts/cloudsmith_temp.py
-
+          
           echo "Running project build ..."
           ${{ github.workspace }}/tools/scripts/build_projects.py \
             ${{ github.workspace }} \
@@ -126,7 +128,8 @@ jobs:
             -log_dir ${{ env.LOGS_DIR }} \
             -builds_dir ${{ env.BUILDS_DIR }} \
             -platform xilinx \
-            -hdl_branch ${{ env.HDL_BRANCH }}
+            -hdl_branch ${{ env.HDL_BRANCH }} \
+            -projects $projects_list
         env:
           CLOUDSMITH_API_KEY: ${{ env.CLOUDSMITH_API_KEY }}
           TOKEN: ${{ secrets.GH_GHDL_TOKEN }}
