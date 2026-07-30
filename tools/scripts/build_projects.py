@@ -8,6 +8,7 @@ import multiprocessing
 import sys
 import filecmp
 import re
+import time
 # This file can be downloaded from the wiki-scripts repository
 # https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py
 from cloudsmith_helper import *
@@ -54,18 +55,20 @@ def parse_input():
 	parser.add_argument('noos_location', help="Path to noos location")
 	parser.add_argument('-export_dir', default=(os.getcwd() + '/exports'), help="Path where to save files")
 	parser.add_argument('-log_dir', default=(os.getcwd() + '/logs'), help="Path where to save log files")
-	parser.add_argument('-project', help="Name of project to be built")
+	parser.add_argument(
+		'-projects',
+		help="List of projects to be built",
+		nargs='+'
+	)
 	parser.add_argument('-platform', help="Name of platform to be built")
-	parser.add_argument('-hardware', help="Name of hardware to be built")
-	parser.add_argument('-build_name', help="Name of built type to be built")
 	parser.add_argument('-builds_dir', default=(os.getcwd() +'/builds'), help="Directory where to build projects")
 	parser.add_argument('-hdl_branch', default='main', help="Name of hdl_branch from which to downlaod hardware or \
 					 we can also specify a timestamp folder from the specific branch but needs to have a specific format, \
 					 of 'branch_name/YYYY_mm_dd-HH_MM_SS' example: main/2023_09_20-06_52_29")
 	args = parser.parse_args()
 
-	return (args.noos_location, args.export_dir, args.log_dir, args.project,
-		args.platform, args.build_name, args.builds_dir, args.hardware, args.hdl_branch)
+	return (args.noos_location, args.export_dir, args.log_dir, 
+		 args.builds_dir, args.platform, args.hdl_branch,args.projects)
 
 ERR = 0
 LOG_START = " -> "
@@ -200,7 +203,7 @@ def process_blacklist():
 		log('Blacklist file is empty -- no projects excluded')
 	return blacklist
 
-def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
+def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch, projects = list):
 	server_base_path = "hdl/"
 	hdl_repo = 'sdg-hdl'
 	pattern = r'\d{4}_\d{2}_\d{2}-\d{2}_\d{2}_\d{2}'
@@ -244,9 +247,12 @@ def configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch):
 			blacklist = process_blacklist()
 		new_hardwares = os.path.join(builds_dir, NEW_HW_DIR_NAME)
 		ensure_dir(new_hardwares)
+		
+		projects_list = ','.join(projects)
+
 		download_cmd = [
 			os.path.join(noos, 'tools', 'scripts', 'download_files.py'),
-			noos, builds_dir, server_full_path, str(blacklist)]
+			noos, builds_dir, server_full_path, str(blacklist), projects_list]
 		result = subprocess.run(download_cmd)
 		if result.returncode != 0:
 			log_err("Hardware download failed (exit %d)" % result.returncode)
@@ -280,8 +286,7 @@ def get_hardware(hardware, platform, builds_dir):
 
 	return (filename, 1, err)
 
-def build_cmake_project(noos, project, _platform, _build_name, export_dir,
-			log_dir, cmake_builds_dir, builds_dir):
+def build_cmake_project(noos, project, _platform, export_dir, log_dir, cmake_builds_dir, builds_dir):
 	"""Build the CMake/Kconfig (Maxim/STM32/Pico/Xilinx) side of a project.
 
 	Discovers the project's project/variant/board combinations from the board
@@ -309,8 +314,6 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 	combos = [c for c in combos if c['platform'] in CMAKE_PLATFORMS]
 	if _platform is not None:
 		combos = [c for c in combos if c['platform'] == _platform]
-	if _build_name is not None:
-		combos = [c for c in combos if c['variant'] == _build_name]
 
 	if not combos:
 		return None
@@ -437,22 +440,25 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 
 	return ok
 
-def main():
-	(noos, export_dir, log_dir, _project,
-	 _platform, _build_name, _builds_dir, _hw, hdl_branch) = parse_input()
-	projets = os.path.join(noos,'projects')
-	ensure_dir(export_dir)
-	ensure_dir(log_dir)
-	(builds_dir, blacklist) = configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch)
-	for project in os.listdir(projets):
-		if _project is not None:
-			if _project != project:
-				continue
-		project_dir = os.path.join(projets, project)
+def check_built_projects(projects = dict):
+	new_projects = {}
+	for project, status in projects.items():
+		if "not_built" in status:
+			new_projects[project] = status
+	if bool(new_projects):
+		return new_projects
+	
+	return False
+
+def build_loop(projects, noos_dir, projects_dir, export_dir, log_dir, builds_dir, platform):
+	new_projects = {}
+	for project, status in projects.items():
+		project_dir = os.path.join(projects_dir, project)
+
 		# CMake is the only build system; skip projects without a CMakeLists.txt.
 		if not os.path.isfile(os.path.join(project_dir, 'CMakeLists.txt')):
 			continue
-
+	
 		all_status = os.path.join(log_dir, 'all_builds.txt')
 
 		# CMake/Kconfig side: combos discovered from the board presets.
@@ -460,11 +466,51 @@ def main():
 		# None when the current -platform job has nothing to build here.
 		cmake_builds_dir = builds_dir + '_cmake'
 		ensure_dir(cmake_builds_dir)
-		cmake_ok = build_cmake_project(noos, project, _platform, _build_name,
-					 export_dir, log_dir, cmake_builds_dir, builds_dir)
-		if cmake_ok is not None:
-			status = 'OK' if cmake_ok == 1 else 'Fail'
-			os.system('echo Project %20s -- %s >> %s' % (project, status, all_status))
+	
+		# Check if the projects is currently in another building process or reserve it otherwise
+		lockfile_path = os.path.join(cmake_builds_dir, f"{project}.lock")
+		if not os.path.isfile(lockfile_path):
+			f = open(lockfile_path, "w")
+	
+			cmake_ok = build_cmake_project(noos_dir, project, platform, export_dir, log_dir, cmake_builds_dir, builds_dir)
+			if cmake_ok is not None:
+				status = 'OK' if cmake_ok == 1 else 'Fail'
+				os.system('echo Project %20s -- %s >> %s' % (project, status, all_status))
+	
+			new_projects[project] = "done"
+			os.remove(lockfile_path)
+		else:
+			new_projects[project] = "not_built"
+			log("%s is already in another build process. Skipping and building it later ..." % project)
+
+	return new_projects
+
+def main():
+	(noos, export_dir, log_dir, _builds_dir, _platform, hdl_branch, _projects) = parse_input()
+	projects_dir = os.path.join(noos,'projects')
+	ensure_dir(export_dir)
+	ensure_dir(log_dir)
+
+	# Create a dictionary for projects to keep the status of currently building projects. If changes are happening
+	# on dependency paths, it'll take the whole projects/ list
+	if 'all' not in _projects:
+		projects = _projects
+	else:
+		projects = os.listdir(projects_dir)
+	projects_dict = {}
+	for project in projects:
+		projects_dict[project] = "not_built"
+
+	(builds_dir, blacklist) = configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch, projects)
+
+	# Build the projects and re-check for non built ones
+	while bool(projects_dict):
+		projects_dict = build_loop(projects_dict, noos, projects_dir, export_dir, log_dir, builds_dir, _platform)
+		projects_dict = check_built_projects(projects_dict)
+		# In case the remaining list on not_build projects is equivalent to the number of currently
+		# building ones, prevent loop spamming.
+		sys.stdout.flush()
+		time.sleep(10)
 
 main()
 
