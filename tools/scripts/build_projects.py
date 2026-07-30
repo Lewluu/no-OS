@@ -55,6 +55,11 @@ def parse_input():
 	parser.add_argument('-export_dir', default=(os.getcwd() + '/exports'), help="Path where to save files")
 	parser.add_argument('-log_dir', default=(os.getcwd() + '/logs'), help="Path where to save log files")
 	parser.add_argument('-project', help="Name of project to be built")
+	parser.add_argument(
+		'-projects',
+		help="List of projects to be built",
+		nargs='+'
+	)
 	parser.add_argument('-platform', help="Name of platform to be built")
 	parser.add_argument('-hardware', help="Name of hardware to be built")
 	parser.add_argument('-build_name', help="Name of built type to be built")
@@ -441,17 +446,17 @@ def build_cmake_project(noos, project, _platform, _build_name, export_dir,
 	return ok
 
 def main():
-	(noos, export_dir, log_dir, _project,
+	(noos, export_dir, log_dir, _project, _projects,
 	 _platform, _build_name, _builds_dir, _hw, hdl_branch) = parse_input()
-	projets = os.path.join(noos,'projects')
+	projects_dir = os.path.join(noos,'projects')
 	ensure_dir(export_dir)
 	ensure_dir(log_dir)
 	(builds_dir, blacklist) = configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch)
-	for project in os.listdir(projets):
+	for project in _projects:
 		if _project is not None:
 			if _project != project:
 				continue
-		project_dir = os.path.join(projets, project)
+		project_dir = os.path.join(projects_dir, project)
 		# CMake is the only build system; skip projects without a CMakeLists.txt.
 		if not os.path.isfile(os.path.join(project_dir, 'CMakeLists.txt')):
 			continue

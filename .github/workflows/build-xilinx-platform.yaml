@@ -1,6 +1,9 @@
 name: Build projects for Xilinx platform
 
 on:
+  # TEST
+  workflow_dispatch:
+    inputs:
   pull_request:
     branches:
       - main
@@ -51,6 +54,44 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  check-changes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          submodules: false
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+      - name: List changed files
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+        shell: bash
+        run: |
+          projects=""
+          for file in ${ALL_CHANGED_FILES}; do
+            if [[ \
+              "$file" == *"board_configs"* || "$file" == *"capi"* || "$file" == *"cmake"* || "$file" == *"drivers"* \
+              || "$file" == *"iio"* || "$file" == *"include"* || "$file" == *"jesd204"* || "$file" == *"libraries"* \
+              || "$file" == *"network"* || "$file" == "*tests*" || "$file" == "*tools*" || "$file" == "*util*" \
+              || "$file" == *"build-xilinx-platform.yaml"* || "$file" == "CMakeLists.txt" || "file" == "CMakePresets.json" \
+              || "$file" == "Kconfig" ]]; \
+              then
+              
+              echo "Dependecy paths were modified. Building whole projects."
+              echo "PROJECTS=all" >> $GITHUB_ENV
+              
+              break
+            else
+              projects="$projects $file" 
+              echo "PROJECTS=$projects" >> $GITHUB_ENV
+            fi
+          done
+      - name: List projects
+        shell: sh
+        run: |
+          echo "${{ env.PROJECTS }}"
   build-xilinx-projects:
     env:
       CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
