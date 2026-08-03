@@ -68,7 +68,6 @@ except Exception as e:
     log_warn("Could not scan CMake .conf for xilinx hardware: %s" % e)
 
 new_harware_dir= os.path.join(BUILD_PATH, NEW_HW_DIR_NAME)
-os.system("rm -rf %s/*" % (new_harware_dir))
 unique_hardware_list = set(list_hardware)
 for item in blacklist:
     if item in unique_hardware_list:

@@ -8,6 +8,7 @@ import multiprocessing
 import sys
 import filecmp
 import re
+import time
 # This file can be downloaded from the wiki-scripts repository
 # https://raw.githubusercontent.com/analogdevicesinc/wiki-scripts/refs/heads/main/utils/cloudsmith_utils/cloudsmith_helper.py
 from cloudsmith_helper import *
@@ -439,24 +440,25 @@ def build_cmake_project(noos, project, _platform, export_dir, log_dir, cmake_bui
 
 	return ok
 
-def main():
-	(noos, export_dir, log_dir, _builds_dir, _platform, hdl_branch, _projects) = parse_input()
-	projects_dir = os.path.join(noos,'projects')
-	ensure_dir(export_dir)
-	ensure_dir(log_dir)
-	if _projects == "all":
-		# Append all projects to build
-		projects = os.listdir('projects')
-	else:
-		# Reference the list of projects
-		projects = _projects
-	(builds_dir, blacklist) = configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch, projects)
-	for project in list(projects):
+def check_built_projects(projects = dict):
+	new_projects = {}
+	for project, status in projects.items():
+		if "not_built" in status:
+			new_projects[project] = status
+	if bool(new_projects):
+		return new_projects
+	
+	return False
+
+def build_loop(projects, noos_dir, projects_dir, export_dir, log_dir, builds_dir, platform):
+	new_projects = {}
+	for project, status in projects.items():
 		project_dir = os.path.join(projects_dir, project)
+
 		# CMake is the only build system; skip projects without a CMakeLists.txt.
 		if not os.path.isfile(os.path.join(project_dir, 'CMakeLists.txt')):
 			continue
-
+	
 		all_status = os.path.join(log_dir, 'all_builds.txt')
 
 		# CMake/Kconfig side: combos discovered from the board presets.
@@ -464,10 +466,51 @@ def main():
 		# None when the current -platform job has nothing to build here.
 		cmake_builds_dir = builds_dir + '_cmake'
 		ensure_dir(cmake_builds_dir)
-		cmake_ok = build_cmake_project(noos, project, _platform, export_dir, log_dir, cmake_builds_dir, builds_dir)
-		if cmake_ok is not None:
-			status = 'OK' if cmake_ok == 1 else 'Fail'
-			os.system('echo Project %20s -- %s >> %s' % (project, status, all_status))
+	
+		# Check if the projects is currently in another building process or reserve it otherwise
+		lockfile_path = os.path.join(cmake_builds_dir, f"{project}.lock")
+		if not os.path.isfile(lockfile_path):
+			f = open(lockfile_path, "w")
+	
+			cmake_ok = build_cmake_project(noos_dir, project, platform, export_dir, log_dir, cmake_builds_dir, builds_dir)
+			if cmake_ok is not None:
+				status = 'OK' if cmake_ok == 1 else 'Fail'
+				os.system('echo Project %20s -- %s >> %s' % (project, status, all_status))
+	
+			new_projects[project] = "done"
+			os.remove(lockfile_path)
+		else:
+			new_projects[project] = "not_built"
+			log("%s is already in another build process. Skipping and building it later ..." % project)
+
+	return new_projects
+
+def main():
+	(noos, export_dir, log_dir, _builds_dir, _platform, hdl_branch, _projects) = parse_input()
+	projects_dir = os.path.join(noos,'projects')
+	ensure_dir(export_dir)
+	ensure_dir(log_dir)
+
+	# Create a dictionary for projects to keep the status of currently building projects. If changes are happening
+	# on dependency paths, it'll take the whole projects/ list
+	if 'all' not in _projects:
+		projects = _projects
+	else:
+		projects = os.listdir(projects_dir)
+	projects_dict = {}
+	for project in projects:
+		projects_dict[project] = "not_built"
+
+	(builds_dir, blacklist) = configfile_and_download_all_hw(_platform, noos, _builds_dir, hdl_branch, projects)
+
+	# Build the projects and re-check for non built ones
+	while bool(projects_dict):
+		projects_dict = build_loop(projects_dict, noos, projects_dir, export_dir, log_dir, builds_dir, _platform)
+		projects_dict = check_built_projects(projects_dict)
+		# In case the remaining list on not_build projects is equivalent to the number of currently
+		# building ones, prevent loop spamming.
+		sys.stdout.flush()
+		time.sleep(10)
 
 main()
 
